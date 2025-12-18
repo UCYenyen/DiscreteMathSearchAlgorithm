@@ -55,7 +55,6 @@ export default function SearchInterface({ initialData }: { initialData: SearchDa
     const term = query.toLowerCase();
     let searchResults: SearchData[] = [];
     
-    // Performa dihitung murni pada proses pencarian
     const start = performance.now();
 
     if (algo === "linear") {
@@ -83,7 +82,6 @@ export default function SearchInterface({ initialData }: { initialData: SearchDa
         let low = 0;
         let high = data.length - 1;
 
-        // Algoritma berjalan pada dataset "apa adanya" (data), baik urut maupun tidak.
         while (low <= high && target >= parseInt(data[low].nim || data[low].value?.toString() || "0") && target <= parseInt(data[high].nim || data[high].value?.toString() || "0")) {
           const lowVal = parseInt(data[low].nim || data[low].value?.toString() || "0");
           const highVal = parseInt(data[high].nim || data[high].value?.toString() || "0");
@@ -92,8 +90,7 @@ export default function SearchInterface({ initialData }: { initialData: SearchDa
             if (lowVal === target) searchResults.push(data[low]);
             break;
           }
-
-          // Rumus: pos = low + [ (target - data[low]) * (high - low) / (data[high] - data[low]) ]
+          
           const pos = low + Math.floor(((target - lowVal) * (high - low)) / (highVal - lowVal));
           
           if (pos < 0 || pos >= data.length) break;
