@@ -6,11 +6,9 @@ const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL 
 });
 const prismaClientSingleton = () => {
-  // Menambahkan extension .withAccelerate()
   return new PrismaClient({ adapter })
 }
 
-// Menyesuaikan tipe global agar sesuai dengan client yang sudah di-extend
 type PrismaClientExtended = ReturnType<typeof prismaClientSingleton>
 
 declare global {
