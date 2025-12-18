@@ -36,8 +36,11 @@ async function main() {
   
   console.log("Starting seed...")
   console.log("Checking database connection...")
-  await prisma.$queryRaw`SELECT 1` // This will fail quickly if the DB is unreachable
+
+  
+  await prisma.$queryRaw`SELECT 1` // checking if the database is reachable
   console.log("Connection successful!")
+  
   try {
     const result = await prisma.mahasiswa.createMany({
       data: studentsData,
