@@ -46,6 +46,15 @@ export default function SearchInterface({ initialData }: { initialData: SearchDa
     updateData();
   }, [dataType, quantity]);
 
+  const stringToNumeric = (str: string) => {
+    const s = str.toLowerCase().slice(0, 4);
+    let num = 0;
+    for (let i = 0; i < s.length; i++) {
+      num = num * 256 + s.charCodeAt(i);
+    }
+    return num;
+  };
+
   const executeSearch = useCallback(() => {
     if (!query || data.length === 0) {
       setResults(data);
@@ -62,7 +71,7 @@ export default function SearchInterface({ initialData }: { initialData: SearchDa
     if (algo !== "linear") {
       currentData.sort((a, b) => {
         if (!isNumeric) {
-          return (a.nama || "").localeCompare(b.nama || "");
+          return (a.nama || "").toLowerCase().localeCompare((b.nama || "").toLowerCase());
         }
         const valA = parseInt(a.nim || a.value?.toString() || "0");
         const valB = parseInt(b.nim || b.value?.toString() || "0");
@@ -92,52 +101,88 @@ export default function SearchInterface({ initialData }: { initialData: SearchDa
       while (low <= high) {
         iterations++;
         const mid = Math.floor((low + high) / 2);
+        const midItem = currentData[mid];
         
         if (isNumeric) {
-          const midVal = parseInt(currentData[mid].nim || currentData[mid].value?.toString() || "0");
+          const midVal = parseInt(midItem.nim || midItem.value?.toString() || "0");
           const target = parseInt(query);
           if (midVal === target) {
-            searchResults.push(currentData[mid]);
+            searchResults.push(midItem);
             break;
           }
           if (midVal < target) low = mid + 1;
           else high = mid - 1;
         } else {
-          const midVal = (currentData[mid].nama || "").toLowerCase();
-          if (midVal === term) {
-            searchResults.push(currentData[mid]);
+          const midName = (midItem.nama || "").toLowerCase();
+          if (midName.startsWith(term)) {
+            let left = mid;
+            while (left >= 0 && (currentData[left].nama || "").toLowerCase().startsWith(term)) {
+              searchResults.unshift(currentData[left]);
+              left--;
+              iterations++;
+            }
+            let right = mid + 1;
+            while (right < currentData.length && (currentData[right].nama || "").toLowerCase().startsWith(term)) {
+              searchResults.push(currentData[right]);
+              right++;
+              iterations++;
+            }
             break;
           }
-          if (midVal < term) low = mid + 1;
+          if (midName < term) low = mid + 1;
           else high = mid - 1;
         }
       }
     }
     else if (algo === "interpolation") {
-      if (isNumeric) {
-        const target = parseInt(query);
-        let low = 0;
-        let high = currentData.length - 1;
+      let low = 0;
+      let high = currentData.length - 1;
 
-        while (low <= high) {
-          iterations++;
-          const lowVal = parseInt(currentData[low].nim || currentData[low].value?.toString() || "0");
-          const highVal = parseInt(currentData[high].nim || currentData[high].value?.toString() || "0");
+      while (low <= high) {
+        iterations++;
+        let lowVal: number, highVal: number, targetVal: number;
 
-          if (target < lowVal || target > highVal) break;
-          
-          let pos = lowVal === highVal ? low : low + Math.floor(((target - lowVal) * (high - low)) / (highVal - lowVal));
-
-          if (pos < low || pos > high) break;
-          const posVal = parseInt(currentData[pos].nim || currentData[pos].value?.toString() || "0");
-
-          if (posVal === target) {
-            searchResults.push(currentData[pos]);
-            break;
-          }
-          if (posVal < target) low = pos + 1;
-          else high = pos - 1;
+        if (isNumeric) {
+          lowVal = parseInt(currentData[low].nim || currentData[low].value?.toString() || "0");
+          highVal = parseInt(currentData[high].nim || currentData[high].value?.toString() || "0");
+          targetVal = parseInt(query);
+        } else {
+          lowVal = stringToNumeric(currentData[low].nama || "");
+          highVal = stringToNumeric(currentData[high].nama || "");
+          targetVal = stringToNumeric(query);
         }
+
+        if (targetVal < lowVal || targetVal > highVal) break;
+
+        let pos = lowVal === highVal ? low : low + Math.floor(((targetVal - lowVal) * (high - low)) / (highVal - lowVal));
+        if (pos < low || pos > high) break;
+
+        const posItem = currentData[pos];
+        const posName = (posItem.nama || "").toLowerCase();
+        const posValNum = isNumeric ? parseInt(posItem.nim || posItem.value?.toString() || "0") : 0;
+
+        if (isNumeric ? posValNum === targetVal : posName.startsWith(term)) {
+          if (!isNumeric) {
+            let left = pos;
+            while (left >= 0 && (currentData[left].nama || "").toLowerCase().startsWith(term)) {
+              if (!searchResults.includes(currentData[left])) searchResults.unshift(currentData[left]);
+              left--;
+              iterations++;
+            }
+            let right = pos + 1;
+            while (right < currentData.length && (currentData[right].nama || "").toLowerCase().startsWith(term)) {
+              if (!searchResults.includes(currentData[right])) searchResults.push(currentData[right]);
+              right++;
+              iterations++;
+            }
+          } else {
+            searchResults.push(posItem);
+          }
+          break;
+        }
+
+        if (isNumeric ? posValNum < targetVal : posName < term) low = pos + 1;
+        else high = pos - 1;
       }
     }
 
@@ -204,7 +249,7 @@ export default function SearchInterface({ initialData }: { initialData: SearchDa
         <div className="space-y-2">
           <label className="text-xs text-zinc-400 font-medium">Search (Enter)</label>
           <Input 
-            placeholder="Search..."
+            placeholder="Search name or NIM..."
             className="bg-zinc-800 text-white border-zinc-700"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
