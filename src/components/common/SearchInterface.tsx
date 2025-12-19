@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { fetchData } from "@/lib/server/action";
 
 interface SearchData {
@@ -20,6 +20,7 @@ interface SearchStats {
   algo: string;
   timeNs: number;
   count: number;
+  iterations: number;
 }
 
 export default function SearchInterface({ initialData }: { initialData: SearchData[] }) {
@@ -46,27 +47,35 @@ export default function SearchInterface({ initialData }: { initialData: SearchDa
   }, [dataType, quantity]);
 
   const executeSearch = useCallback(() => {
-    if (!query) {
+    if (!query || data.length === 0) {
       setResults(data);
       setStats(null);
       return;
     }
 
     const term = query.toLowerCase();
+    const isNumeric = !isNaN(Number(query));
     let searchResults: SearchData[] = [];
+    let iterations = 0;
     
+    let currentData = [...data];
+    if (algo !== "linear") {
+      currentData.sort((a, b) => {
+        if (!isNumeric) {
+          return (a.nama || "").localeCompare(b.nama || "");
+        }
+        const valA = parseInt(a.nim || a.value?.toString() || "0");
+        const valB = parseInt(b.nim || b.value?.toString() || "0");
+        return valA - valB;
+      });
+    }
+
     const start = performance.now();
 
     if (algo === "linear") {
-      searchResults = data.filter((item) => 
-        item.nama?.toLowerCase().includes(term) || 
-        item.nim?.toLowerCase().includes(term) ||
-        item.value?.toString().includes(term)
-      );
-    } 
-    else if (algo === "sequential") {
-      for (let i = 0; i < data.length; i++) {
-        const item = data[i];
+      for (let i = 0; i < currentData.length; i++) {
+        iterations++;
+        const item = currentData[i];
         if (
           item.nama?.toLowerCase().includes(term) || 
           item.nim?.toLowerCase().includes(term) ||
@@ -75,33 +84,57 @@ export default function SearchInterface({ initialData }: { initialData: SearchDa
           searchResults.push(item);
         }
       }
+    } 
+    else if (algo === "binary") {
+      let low = 0;
+      let high = currentData.length - 1;
+
+      while (low <= high) {
+        iterations++;
+        const mid = Math.floor((low + high) / 2);
+        
+        if (isNumeric) {
+          const midVal = parseInt(currentData[mid].nim || currentData[mid].value?.toString() || "0");
+          const target = parseInt(query);
+          if (midVal === target) {
+            searchResults.push(currentData[mid]);
+            break;
+          }
+          if (midVal < target) low = mid + 1;
+          else high = mid - 1;
+        } else {
+          const midVal = (currentData[mid].nama || "").toLowerCase();
+          if (midVal === term) {
+            searchResults.push(currentData[mid]);
+            break;
+          }
+          if (midVal < term) low = mid + 1;
+          else high = mid - 1;
+        }
+      }
     }
     else if (algo === "interpolation") {
-      const target = parseInt(query);
-      if (!isNaN(target)) {
+      if (isNumeric) {
+        const target = parseInt(query);
         let low = 0;
-        let high = data.length - 1;
+        let high = currentData.length - 1;
 
-        while (low <= high && target >= parseInt(data[low].nim || data[low].value?.toString() || "0") && target <= parseInt(data[high].nim || data[high].value?.toString() || "0")) {
-          const lowVal = parseInt(data[low].nim || data[low].value?.toString() || "0");
-          const highVal = parseInt(data[high].nim || data[high].value?.toString() || "0");
+        while (low <= high) {
+          iterations++;
+          const lowVal = parseInt(currentData[low].nim || currentData[low].value?.toString() || "0");
+          const highVal = parseInt(currentData[high].nim || currentData[high].value?.toString() || "0");
 
-          if (low === high) {
-            if (lowVal === target) searchResults.push(data[low]);
-            break;
-          }
+          if (target < lowVal || target > highVal) break;
           
-          const pos = low + Math.floor(((target - lowVal) * (high - low)) / (highVal - lowVal));
-          
-          if (pos < 0 || pos >= data.length) break;
+          let pos = lowVal === highVal ? low : low + Math.floor(((target - lowVal) * (high - low)) / (highVal - lowVal));
 
-          const posVal = parseInt(data[pos].nim || data[pos].value?.toString() || "0");
+          if (pos < low || pos > high) break;
+          const posVal = parseInt(currentData[pos].nim || currentData[pos].value?.toString() || "0");
 
           if (posVal === target) {
-            searchResults.push(data[pos]);
+            searchResults.push(currentData[pos]);
             break;
           }
-          
           if (posVal < target) low = pos + 1;
           else high = pos - 1;
         }
@@ -112,7 +145,7 @@ export default function SearchInterface({ initialData }: { initialData: SearchDa
     const durationNs = Math.max((end - start) * 1_000_000, 0.001);
 
     setResults(searchResults);
-    setStats({ algo, timeNs: durationNs, count: searchResults.length });
+    setStats({ algo, timeNs: durationNs, count: searchResults.length, iterations });
     setShowStats(true); 
   }, [query, algo, data]);
 
@@ -133,7 +166,7 @@ export default function SearchInterface({ initialData }: { initialData: SearchDa
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="bg-zinc-800 text-white border-zinc-700">
-              <SelectItem value="UNIFORM">Uniform (Sorted Mahasiswa)</SelectItem>
+              <SelectItem value="UNIFORM">Uniform (Mahasiswa)</SelectItem>
               <SelectItem value="NON_UNIFORM">Non-Uniform</SelectItem> 
               <SelectItem value="UNSORTED">Unsorted/Random</SelectItem>
             </SelectContent>
@@ -161,18 +194,18 @@ export default function SearchInterface({ initialData }: { initialData: SearchDa
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="bg-zinc-800 text-white border-zinc-700">
-              <SelectItem value="linear">Linear (Filter)</SelectItem>
-              <SelectItem value="sequential">Sequential (Manual Loop)</SelectItem>
-              <SelectItem value="interpolation">Interpolation</SelectItem>
+              <SelectItem value="linear">Linear Search</SelectItem>
+              <SelectItem value="binary">Binary Search</SelectItem>
+              <SelectItem value="interpolation">Interpolation Search</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         <div className="space-y-2">
-          <label className="text-xs text-zinc-400 font-medium">Search (Press Enter)</label>
+          <label className="text-xs text-zinc-400 font-medium">Search (Enter)</label>
           <Input 
-            placeholder="Type and press Enter..."
-            className="bg-zinc-800 text-white border-zinc-700 focus-visible:ring-1"
+            placeholder="Search..."
+            className="bg-zinc-800 text-white border-zinc-700"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -180,19 +213,19 @@ export default function SearchInterface({ initialData }: { initialData: SearchDa
         </div>
       </div>
 
-      <div className="relative rounded-xl border border-zinc-700 min-h-[400px] overflow-hidden">
-        {loading && <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center text-white z-10 font-bold">LOADING DATA...</div>}
+      <div className="relative rounded-xl border border-zinc-700 min-h-[400px] overflow-hidden bg-zinc-900">
+        {loading && <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center text-white z-10 font-bold">LOADING...</div>}
         <Table>
           <TableHeader className="bg-zinc-800/50">
-            <TableRow className="border-zinc-700">
+            <TableRow className="border-zinc-700 hover:bg-transparent">
               <TableHead className="text-zinc-300">ID / NIM</TableHead>
               <TableHead className="text-zinc-300">Name / Value</TableHead>
               <TableHead className="text-zinc-300">Detail</TableHead>
             </TableRow>
           </TableHeader>
-          <TableBody className="bg-zinc-900">
+          <TableBody>
             {results.slice(0, 100).map((item, i) => (
-              <TableRow key={item.id || i} className="border-zinc-700 text-zinc-300 hover:bg-zinc-800/40 transition-colors">
+              <TableRow key={item.id || i} className="border-zinc-700 text-zinc-300 hover:bg-zinc-800/40">
                 <TableCell className="font-mono">{item.nim || item.id}</TableCell>
                 <TableCell>{item.nama || item.value}</TableCell>
                 <TableCell className="text-zinc-500 text-xs">{item.jurusan || item.alamat || "N/A"}</TableCell>
@@ -200,34 +233,18 @@ export default function SearchInterface({ initialData }: { initialData: SearchDa
             ))}
           </TableBody>
         </Table>
-        {!loading && results.length === 0 && query && (
-          <div className="p-20 text-center text-zinc-500 italic">No results found for your query.</div>
-        )}
       </div>
 
       <Dialog open={showStats} onOpenChange={setShowStats}>
         <DialogContent className="bg-zinc-950 border-zinc-700 text-white max-w-sm">
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold text-center">Benchmark Results</DialogTitle>
+            <DialogTitle className="text-center">Benchmark Statistics</DialogTitle>
           </DialogHeader>
-          <div className="mt-4 space-y-4">
-            <div className="p-3 bg-zinc-900 rounded-lg border border-zinc-800">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-zinc-400 text-sm">Algorithm</span>
-                <span className="px-2 py-1 bg-blue-500/10 text-blue-400 text-xs rounded uppercase font-bold">{stats?.algo}</span>
-              </div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-zinc-400 text-sm">Time</span>
-                <span className="text-green-400 font-mono font-bold text-lg">{stats?.timeNs.toLocaleString()} ns</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-zinc-400 text-sm">Found</span>
-                <span className="font-bold">{stats?.count} items</span>
-              </div>
-            </div>
-            <div className="text-[10px] text-zinc-500 text-center italic">
-              Note: Interpolation search may fail if data is not sorted correctly.
-            </div>
+          <div className="mt-4 space-y-3 bg-zinc-900 p-4 rounded-lg border border-zinc-800">
+            <div className="flex justify-between text-sm"><span className="text-zinc-400">Algorithm</span><span className="font-bold text-blue-400 uppercase">{stats?.algo}</span></div>
+            <div className="flex justify-between text-sm"><span className="text-zinc-400">Execution Time</span><span className="font-mono text-green-400 font-bold">{stats?.timeNs.toLocaleString()} ns</span></div>
+            <div className="flex justify-between text-sm"><span className="text-zinc-400">Iterations</span><span className="font-mono text-yellow-400 font-bold">{stats?.iterations.toLocaleString()} steps</span></div>
+            <div className="flex justify-between text-sm"><span className="text-zinc-400">Items Found</span><span className="font-bold">{stats?.count} items</span></div>
           </div>
         </DialogContent>
       </Dialog>
