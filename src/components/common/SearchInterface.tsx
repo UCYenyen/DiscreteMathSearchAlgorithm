@@ -71,7 +71,9 @@ export default function SearchInterface({ initialData }: { initialData: SearchDa
     if (algo !== "linear") {
       currentData.sort((a, b) => {
         if (!isNumeric) {
-          return (a.nama || "").toLowerCase().localeCompare((b.nama || "").toLowerCase());
+          const valA = (a.nama || a.jurusan || "").toLowerCase();
+          const valB = (b.nama || b.jurusan || "").toLowerCase();
+          return valA.localeCompare(valB);
         }
         const valA = parseInt(a.nim || a.value?.toString() || "0");
         const valB = parseInt(b.nim || b.value?.toString() || "0");
@@ -88,6 +90,7 @@ export default function SearchInterface({ initialData }: { initialData: SearchDa
         if (
           item.nama?.toLowerCase().includes(term) || 
           item.nim?.toLowerCase().includes(term) ||
+          item.jurusan?.toLowerCase().includes(term) ||
           item.value?.toString().includes(term)
         ) {
           searchResults.push(item);
@@ -114,22 +117,25 @@ export default function SearchInterface({ initialData }: { initialData: SearchDa
           else high = mid - 1;
         } else {
           const midName = (midItem.nama || "").toLowerCase();
-          if (midName.startsWith(term)) {
+          const midJurusan = (midItem.jurusan || "").toLowerCase();
+          
+          if (midName.startsWith(term) || midJurusan.startsWith(term)) {
             let left = mid;
-            while (left >= 0 && (currentData[left].nama || "").toLowerCase().startsWith(term)) {
+            while (left >= 0 && ((currentData[left].nama || "").toLowerCase().startsWith(term) || (currentData[left].jurusan || "").toLowerCase().startsWith(term))) {
               searchResults.unshift(currentData[left]);
               left--;
               iterations++;
             }
             let right = mid + 1;
-            while (right < currentData.length && (currentData[right].nama || "").toLowerCase().startsWith(term)) {
+            while (right < currentData.length && ((currentData[right].nama || "").toLowerCase().startsWith(term) || (currentData[right].jurusan || "").toLowerCase().startsWith(term))) {
               searchResults.push(currentData[right]);
               right++;
               iterations++;
             }
             break;
           }
-          if (midName < term) low = mid + 1;
+          const compareVal = midName || midJurusan;
+          if (compareVal < term) low = mid + 1;
           else high = mid - 1;
         }
       }
@@ -147,8 +153,8 @@ export default function SearchInterface({ initialData }: { initialData: SearchDa
           highVal = parseInt(currentData[high].nim || currentData[high].value?.toString() || "0");
           targetVal = parseInt(query);
         } else {
-          lowVal = stringToNumeric(currentData[low].nama || "");
-          highVal = stringToNumeric(currentData[high].nama || "");
+          lowVal = stringToNumeric(currentData[low].nama || currentData[low].jurusan || "");
+          highVal = stringToNumeric(currentData[high].nama || currentData[high].jurusan || "");
           targetVal = stringToNumeric(query);
         }
 
@@ -159,18 +165,19 @@ export default function SearchInterface({ initialData }: { initialData: SearchDa
 
         const posItem = currentData[pos];
         const posName = (posItem.nama || "").toLowerCase();
+        const posJurusan = (posItem.jurusan || "").toLowerCase();
         const posValNum = isNumeric ? parseInt(posItem.nim || posItem.value?.toString() || "0") : 0;
 
-        if (isNumeric ? posValNum === targetVal : posName.startsWith(term)) {
+        if (isNumeric ? posValNum === targetVal : (posName.startsWith(term) || posJurusan.startsWith(term))) {
           if (!isNumeric) {
             let left = pos;
-            while (left >= 0 && (currentData[left].nama || "").toLowerCase().startsWith(term)) {
+            while (left >= 0 && ((currentData[left].nama || "").toLowerCase().startsWith(term) || (currentData[left].jurusan || "").toLowerCase().startsWith(term))) {
               if (!searchResults.includes(currentData[left])) searchResults.unshift(currentData[left]);
               left--;
               iterations++;
             }
             let right = pos + 1;
-            while (right < currentData.length && (currentData[right].nama || "").toLowerCase().startsWith(term)) {
+            while (right < currentData.length && ((currentData[right].nama || "").toLowerCase().startsWith(term) || (currentData[right].jurusan || "").toLowerCase().startsWith(term))) {
               if (!searchResults.includes(currentData[right])) searchResults.push(currentData[right]);
               right++;
               iterations++;
@@ -181,7 +188,8 @@ export default function SearchInterface({ initialData }: { initialData: SearchDa
           break;
         }
 
-        if (isNumeric ? posValNum < targetVal : posName < term) low = pos + 1;
+        const compareVal = posName || posJurusan;
+        if (isNumeric ? posValNum < targetVal : compareVal < term) low = pos + 1;
         else high = pos - 1;
       }
     }
@@ -249,7 +257,7 @@ export default function SearchInterface({ initialData }: { initialData: SearchDa
         <div className="space-y-2">
           <label className="text-xs text-zinc-400 font-medium">Search (Enter)</label>
           <Input 
-            placeholder="Search name or NIM..."
+            placeholder="Search name, NIM, or major..."
             className="bg-zinc-800 text-white border-zinc-700"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -265,7 +273,7 @@ export default function SearchInterface({ initialData }: { initialData: SearchDa
             <TableRow className="border-zinc-700 hover:bg-transparent">
               <TableHead className="text-zinc-300">ID / NIM</TableHead>
               <TableHead className="text-zinc-300">Name / Value</TableHead>
-              <TableHead className="text-zinc-300">Detail</TableHead>
+              <TableHead className="text-zinc-300">Detail (Jurusan/Alamat)</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -273,7 +281,9 @@ export default function SearchInterface({ initialData }: { initialData: SearchDa
               <TableRow key={item.id || i} className="border-zinc-700 text-zinc-300 hover:bg-zinc-800/40">
                 <TableCell className="font-mono">{item.nim || item.id}</TableCell>
                 <TableCell>{item.nama || item.value}</TableCell>
-                <TableCell className="text-zinc-500 text-xs">{item.jurusan || item.alamat || "N/A"}</TableCell>
+                <TableCell className="text-zinc-500 text-xs">
+                  {item.jurusan ? `${item.jurusan} - ` : ""}{item.alamat || ""}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
