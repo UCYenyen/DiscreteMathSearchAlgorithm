@@ -3,164 +3,118 @@ import { fakerID_ID as faker } from "@faker-js/faker";
 import "dotenv/config";
 
 async function main() {
-  // data uniform
   const totalData = 1000;
-  const totalDataMahasiswa2 = 5000;
-  const totalDataMahasiswa3 = 10000;
+  const totalData5K = 5000;
+  const totalData10K = 10000;
 
-  const studentsData = Array.from({ length: totalData }).map(() => ({
-    nama: faker.person.fullName(),
-    nim: `2024${faker.string.numeric(8)}`,
-    jurusan: faker.helpers.arrayElement([
-      "Teknik Informatika",
-      "Sistem Informasi",
-      "Teknik Sipil",
-      "Manajemen",
-      "Akuntansi",
-    ]),
-    alamat: faker.location.streetAddress(true),
-  }));
+  const generateUniform = (len: number) =>
+    Array.from({ length: len }).map((_, i) => ({
+      nama: faker.person.fullName(),
+      nim: (202400000000 + i).toString(),
+      jurusan: faker.helpers.arrayElement([
+        "Teknik Informatika",
+        "Sistem Informasi",
+        "Manajemen",
+      ]),
+      alamat: faker.location.streetAddress(true),
+    }));
 
-  const studentsDataMahasiswa5K = Array.from({
-    length: totalDataMahasiswa2,
-  }).map(() => ({
-    nama: faker.person.fullName(),
-    nim: `2024${faker.string.numeric(8)}`,
-    jurusan: faker.helpers.arrayElement([
-      "Teknik Informatika",
-      "Sistem Informasi",
-      "Teknik Sipil",
-      "Manajemen",
-      "Akuntansi",
-    ]),
-    alamat: faker.location.streetAddress(true),
-  }));
+  const generateUnsorted = (len: number) => {
+    const nims = Array.from({ length: len }).map(() =>
+      faker.number.int({ min: 10000000, max: 99999999 }).toString()
+    );
 
-  const studentsDataMahasiswa10K = Array.from({
-    length: totalDataMahasiswa3,
-  }).map(() => ({
-    nama: faker.person.fullName(),
-    nim: `2024${faker.string.numeric(8)}`,
-    jurusan: faker.helpers.arrayElement([
-      "Teknik Informatika",
-      "Sistem Informasi",
-      "Teknik Sipil",
-      "Manajemen",
-      "Akuntansi",
-    ]),
-    alamat: faker.location.streetAddress(true),
-  }));
+    return nims.map((nim) => ({
+      nama: faker.person.fullName(),
+      nim: `2024${nim}`,
+      jurusan: faker.helpers.arrayElement([
+        "Teknik Sipil",
+        "Akuntansi",
+        "Teknik Informatika",
+      ]),
+      alamat: faker.location.streetAddress(true),
+    }));
+  };
 
-  // unsorted randomized data
+  const generateNonUniform = (len: number) => {
+    const dominantData = {
+      nama: "Reze",
+      nim: "202411111111",
+      jurusan: "Teknik Informatika",
+      alamat: "Jl. Dominan No. 1",
+    };
 
-  const unsortedRandomizedData = Array.from({ length: totalData }).map(() => ({
-    value: faker.number.int({ min: 1, max: 10000 }),
-  }));
+    const extraDataOptions = [
+      {
+        nama: "User Dua",
+        nim: "202422222222",
+        jurusan: "Sistem Informasi",
+        alamat: "Alamat Dua",
+      },
+      {
+        nama: "User Lima Puluh",
+        nim: "202450505050",
+        jurusan: "Manajemen",
+        alamat: "Alamat 50",
+      },
+      {
+        nama: "User Seratus",
+        nim: "202499999999",
+        jurusan: "Akuntansi",
+        alamat: "Alamat 100",
+      },
+    ];
 
-  const unsortedRandomizedData5k = Array.from({
-    length: totalDataMahasiswa2,
-  }).map(() => ({
-    value: faker.number.int({ min: 1, max: 10000 }),
-  }));
+    return Array.from({ length: len }).map(() => {
+      const rand = Math.random();
+      if (rand < 0.9) {
+        return { ...dominantData };
+      } else {
+        return faker.helpers.arrayElement(extraDataOptions);
+      }
+    });
+  };
 
-  const unsortedRandomizedData10k = Array.from({
-    length: totalDataMahasiswa3,
-  }).map(() => ({
-    value: faker.number.int({ min: 1, max: 10000 }),
-  }));
-
-  // Non Uniform Data
-  const nonUniformData = Array.from({ length: totalData }).map(() => {
-    const rand = Math.random();
-    if (rand < 0.9) {
-      return { value: 1 };
-    } else {
-      return { value: faker.helpers.arrayElement([2, 50, 100]) };
-    }
-  });
-
-  const nonUniformData5k = Array.from({ length: totalDataMahasiswa2 }).map(() => {
-    const rand = Math.random();
-    if (rand < 0.9) {
-      return { value: 1 };
-    } else {
-      return { value: faker.helpers.arrayElement([2, 50, 100]) };
-    }
-  });
-
-  const nonUniformData10k = Array.from({ length: totalDataMahasiswa3 }).map(() => {
-    const rand = Math.random();
-    if (rand < 0.9) {
-      return { value: 1 };
-    } else {
-      return { value: faker.helpers.arrayElement([2, 50, 100]) };
-    }
-  });
   console.log("Starting seed...");
-  console.log("Checking database connection...");
-
-  await prisma.$queryRaw`SELECT 1`; // checking if the database is reachable
-  console.log("Connection successful!");
 
   try {
-    const result = await prisma.mahasiswa.createMany({
-      data: studentsData,
-      skipDuplicates: true,
+    // Seeding Uniform
+    await prisma.mahasiswa.createMany({ data: generateUniform(totalData) });
+    await prisma.mahasiswa5K.createMany({ data: generateUniform(totalData5K) });
+    await prisma.mahasiswa10K.createMany({
+      data: generateUniform(totalData10K),
     });
 
-    const resultMahasiswa5K = await prisma.mahasiswa5K.createMany({
-      data: studentsDataMahasiswa5K,
-      skipDuplicates: true,
+    // Seeding Unsorted (NIM Lompat-lompat)
+    await prisma.unsortedRandomizedData.createMany({
+      data: generateUnsorted(totalData),
+    });
+    await prisma.unsortedRandomizedData5K.createMany({
+      data: generateUnsorted(totalData5K),
+    });
+    await prisma.unsortedRandomizedData10K.createMany({
+      data: generateUnsorted(totalData10K),
     });
 
-    const resultMahasiswa10K = await prisma.mahasiswa10K.createMany({
-      data: studentsDataMahasiswa10K,
-      skipDuplicates: true,
+    // Seeding Non-Uniform (90% Identik)
+    await prisma.nonUniformData.createMany({
+      data: generateNonUniform(totalData),
     });
-    console.log(`Success: ${result.count} records seeded.`);
-    console.log(`Success: ${resultMahasiswa5K.count} records seeded.`);
-    console.log(`Success: ${resultMahasiswa10K.count} records seeded.`);
-
-    const unsortedResult = await prisma.unsortedRandomizedData.createMany({
-      data: unsortedRandomizedData,
+    await prisma.nonuniformData5k.createMany({
+      data: generateNonUniform(totalData5K),
     });
-
-    const unsortedResult5k = await prisma.unsortedRandomizedData5K.createMany({
-      data: unsortedRandomizedData5k,
+    await prisma.nonuniformData10k.createMany({
+      data: generateNonUniform(totalData10K),
     });
 
-    const unsortedResult10k = await prisma.unsortedRandomizedData10K.createMany({
-      data: unsortedRandomizedData10k,
-    });
-
-    console.log(`Success: ${unsortedResult.count} unsorted records seeded.`);
-    console.log(`Success: ${unsortedResult5k.count} unsorted 5k records seeded.`);
-    console.log(`Success: ${unsortedResult10k.count} unsorted 10k records seeded.`);
-
-    const nonUniformResult = await prisma.nonUniformData.createMany({
-      data: nonUniformData,
-    });
-
-    const nonUniformResult5k = await prisma.nonuniformData5k.createMany({
-      data: nonUniformData5k,
-    });
-
-    const nonUniformResult10k = await prisma.nonuniformData10k.createMany({
-      data: nonUniformData10k,
-    });
-
-    console.log(`Success: ${nonUniformResult.count} non-uniform records seeded.`);
-    console.log(`Success: ${nonUniformResult5k.count} non-uniform 5k records seeded.`);
-    console.log(`Success: ${nonUniformResult10k.count} non-uniform 10k records seeded.`);
+    console.log("Seed successful!");
   } catch (error) {
-    console.error("Detailed Error:", error);
+    console.error("Error during seeding:", error);
   }
 }
 
 main()
-  .then(async () => {
-    await prisma.$disconnect();
-  })
+  .then(async () => await prisma.$disconnect())
   .catch(async (e) => {
     console.error(e);
     await prisma.$disconnect();

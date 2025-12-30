@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -27,6 +29,11 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <Link href="algorithm/analysis" className="fixed">
+          <Button variant="outline" className="border-zinc-700 text-black">
+            Lihat Semua Analisis & Export
+          </Button>
+        </Link>
         {children}
       </body>
     </html>

@@ -1,6 +1,5 @@
 import { NonuniformData10k } from "@/generated/prisma/client";
 import prisma from "@/lib/prisma";
-import error from "next/error";
 export async function getNonUniformData(quantity: string) : Promise<NonuniformData10k[] | {message: string}> {
   if (quantity === "ONETHOUSAND") {
     return await prisma.nonUniformData.findMany();

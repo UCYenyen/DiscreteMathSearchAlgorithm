@@ -13,62 +13,126 @@ datasource db {
   provider = "postgresql"
 }
 
+enum Algorithm {
+  LINEAR_SEARCH
+  BINARY_SEARCH
+  INTERPOLATION_SEARCH
+}
+
+enum Datatype {
+  UNIFORM
+  NONUNIFORM
+  UNSORTED
+}
+
+enum DatasetSize {
+  SIZE_1K
+  SIZE_5K
+  SIZE_10K
+}
+
+enum FieldToSearch {
+  NAMA
+  NIM
+  JURUSAN
+  ALAMAT
+}
+
+model AnalysisResult {
+  id         String @id @default(cuid())
+  iterations Int
+  itemsFound Int    @default(0)
+
+  executionTimeMs Float
+  startSearchAt   DateTime @default(now())
+  endSearchAt     DateTime
+
+  datatype  Datatype
+  algorithm Algorithm
+  datasetSize DatasetSize
+  
+  fieldToSearch FieldToSearch
+  searchValue   String
+  refrenceDataset String
+}
+
 model Mahasiswa {
-  id        String   @id @default(cuid())
-  nama      String
-  nim       String   @unique
-  jurusan   String
-  alamat    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id      String @id @default(cuid())
+  nama    String
+  nim     String
+  jurusan String
+  alamat  String
+  size DatasetSize @default(SIZE_1K)
 }
 
 model Mahasiswa5K {
-  id        String   @id @default(cuid())
-  nama      String
-  nim       String   @unique
-  jurusan   String
-  alamat    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id      String @id @default(cuid())
+  nama    String
+  nim     String
+  jurusan String
+  alamat  String
+  size DatasetSize @default(SIZE_5K)
 }
 
 model Mahasiswa10K {
-  id        String   @id @default(cuid())
-  nama      String
-  nim       String   @unique
-  jurusan   String
-  alamat    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id      String @id @default(cuid())
+  nama    String
+  nim     String
+  jurusan String
+  alamat  String
+  size DatasetSize @default(SIZE_10K)
 }
 
 model UnsortedRandomizedData {
-  id String @id @default(cuid())
-  value Int
+  id      String @id @default(cuid())
+  nama    String
+  nim     String
+  jurusan String
+  alamat  String
+  size DatasetSize @default(SIZE_1K)
 }
 
 model UnsortedRandomizedData5K {
-  id String @id @default(cuid())
-  value Int
+  id      String @id @default(cuid())
+  nama    String
+  nim     String
+  jurusan String
+  alamat  String
+  size DatasetSize @default(SIZE_5K)
 }
 
 model UnsortedRandomizedData10K {
-  id String @id @default(cuid())
-  value Int
+  id      String @id @default(cuid())
+  nama    String
+  nim     String
+  jurusan String
+  alamat  String
+  size DatasetSize @default(SIZE_10K)
 }
 
-model NonUniformData{
-  id String @id @default(cuid())
-  value Int
+model NonUniformData {
+  id      String @id @default(cuid())
+  nama    String
+  nim     String
+  jurusan String
+  alamat  String
+  size DatasetSize @default(SIZE_1K)
 }
 
-model NonuniformData5k{
-  id String @id @default(cuid())
-  value Int
+model NonuniformData5k {
+  id      String @id @default(cuid())
+  nama    String
+  nim     String
+  jurusan String
+  alamat  String
+  size DatasetSize @default(SIZE_5K)
 }
 
-model NonuniformData10k{
-  id String @id @default(cuid())
-  value Int
+model NonuniformData10k {
+  id      String @id @default(cuid())
+  nama    String
+  nim     String
+  jurusan String
+  alamat  String
+  size DatasetSize @default(SIZE_10K)
 }
