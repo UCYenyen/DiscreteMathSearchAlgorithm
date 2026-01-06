@@ -47,23 +47,16 @@ export default function SearchInterface({ initialData }: { initialData: SearchDa
     updateData();
   }, [dataType, quantity]);
 
-  const stringToNumeric = (str: string) => {
-    const cleanStr = str.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 8);
-    let num = 0;
-    for (let i = 0; i < cleanStr.length; i++) {
-      num = num * 31 + cleanStr.charCodeAt(i);
-    }
-    return num;
-  };
-
   const executeSearch = useCallback(async () => {
     if (!query || data.length === 0 || loading) return;
 
-    const term = query.toLowerCase();
+    const term = query.toLowerCase().trim();
     let searchResults: SearchData[] = [];
     let iterations = 0;
     
     let currentData = [...data];
+    
+    // Sort data jika bukan linear search
     if (algo !== "linear") {
       currentData.sort((a, b) => {
         const valA = (a[searchField as keyof SearchData] || "").toString().toLowerCase();
@@ -76,64 +69,208 @@ export default function SearchInterface({ initialData }: { initialData: SearchDa
     const startPerf = performance.now();
 
     if (algo === "linear") {
+      // LINEAR SEARCH: O(n) - Sequential scanning
+      // Cocok untuk: unsorted data, substring matching
+      // Prinsip: Periksa setiap elemen satu per satu
       for (let i = 0; i < currentData.length; i++) {
         iterations++;
-        const val = (currentData[i][searchField as keyof SearchData] || "").toString().toLowerCase();
-        if (val.includes(term)) searchResults.push(currentData[i]);
+        const val = (currentData[i][searchField as keyof SearchData] || "")
+          .toString()
+          .toLowerCase();
+        if (val.includes(term)) {
+          searchResults.push(currentData[i]);
+        }
       }
     } 
     else if (algo === "binary") {
-      let low = 0, high = currentData.length - 1;
+      // BINARY SEARCH: O(log n) - Divide and Conquer
+      // Syarat: Data harus terurut (sorted)
+      // Prinsip: Bagi array menjadi dua, eliminasi setengah data setiap iterasi
+      // Hanya untuk EXACT MATCH
+      let low = 0;
+      let high = currentData.length - 1;
+      
       while (low <= high) {
         iterations++;
         const mid = Math.floor((low + high) / 2);
-        const midVal = (currentData[mid][searchField as keyof SearchData] || "").toString().toLowerCase();
+        const midVal = (currentData[mid][searchField as keyof SearchData] || "")
+          .toString()
+          .toLowerCase();
         
-        if (midVal.includes(term)) {
-          let l = mid;
-          while (l >= 0 && (currentData[l][searchField as keyof SearchData] || "").toString().toLowerCase().includes(term)) {
-            searchResults.unshift(currentData[l--]);
+        // EXACT MATCH comparison (prinsip binary search)
+        if (midVal === term) {
+          // Ditemukan exact match
+          searchResults.push(currentData[mid]);
+          
+          // Cari duplikat di kiri (jika ada data sama)
+          let left = mid - 1;
+          while (left >= 0) {
             iterations++;
+            const leftVal = (currentData[left][searchField as keyof SearchData] || "")
+              .toString()
+              .toLowerCase();
+            if (leftVal === term) {
+              searchResults.unshift(currentData[left]);
+              left--;
+            } else {
+              break;
+            }
           }
-          let r = mid + 1;
-          while (r < currentData.length && (currentData[r][searchField as keyof SearchData] || "").toString().toLowerCase().includes(term)) {
-            searchResults.push(currentData[r++]);
+          
+          // Cari duplikat di kanan (jika ada data sama)
+          let right = mid + 1;
+          while (right < currentData.length) {
             iterations++;
+            const rightVal = (currentData[right][searchField as keyof SearchData] || "")
+              .toString()
+              .toLowerCase();
+            if (rightVal === term) {
+              searchResults.push(currentData[right]);
+              right++;
+            } else {
+              break;
+            }
           }
           break;
         }
-        if (midVal < term) low = mid + 1; else high = mid - 1;
+        
+        // Binary comparison: bandingkan nilai untuk menentukan arah pencarian
+        if (midVal < term) {
+          low = mid + 1; // Cari di kanan
+        } else {
+          high = mid - 1; // Cari di kiri
+        }
       }
     }
     else if (algo === "interpolation") {
-      let low = 0, high = currentData.length - 1;
-      const targetNum = stringToNumeric(term);
-
-      while (low <= high) {
-        iterations++;
-        const lowStr = (currentData[low][searchField as keyof SearchData] || "").toString().toLowerCase();
-        const highStr = (currentData[high][searchField as keyof SearchData] || "").toString().toLowerCase();
-        const lowNum = stringToNumeric(lowStr), highNum = stringToNumeric(highStr);
-
-        if (targetNum < lowNum || targetNum > highNum) break;
-        let pos = lowNum === highNum ? low : low + Math.floor(((targetNum - lowNum) * (high - low)) / (highNum - lowNum));
-        if (pos < low || pos > high) break;
-
-        const posStr = (currentData[pos][searchField as keyof SearchData] || "").toString().toLowerCase();
-        if (posStr.includes(term)) {
-          let l = pos;
-          while (l >= 0 && (currentData[l][searchField as keyof SearchData] || "").toString().toLowerCase().includes(term)) {
-            searchResults.unshift(currentData[l--]);
-            iterations++;
+      // INTERPOLATION SEARCH: O(log log n) average case
+      // Syarat: Data terurut + Distribusi uniform + Data numerik
+      // Prinsip: Estimasi posisi target berdasarkan nilai (seperti mencari di kamus)
+      // Formula: pos = low + ((target - arr[low]) / (arr[high] - arr[low])) * (high - low)
+      
+      // Helper function untuk ekstrak nilai numerik
+      const getNumericValue = (str: string): number => {
+        // Ekstrak bagian numerik dari string (untuk NIM)
+        const numericPart = str.replace(/\D/g, '');
+        return numericPart ? parseInt(numericPart, 10) : 0;
+      };
+      
+      // Cek apakah field adalah numerik (NIM cocok untuk interpolation)
+      const isNumericField = searchField === 'nim';
+      
+      if (!isNumericField) {
+        // FALLBACK ke binary search untuk field non-numerik
+        // Interpolation search memerlukan nilai numerik dengan distribusi uniform
+        let low = 0;
+        let high = currentData.length - 1;
+        
+        while (low <= high) {
+          iterations++;
+          const mid = Math.floor((low + high) / 2);
+          const midVal = (currentData[mid][searchField as keyof SearchData] || "")
+            .toString()
+            .toLowerCase();
+          
+          if (midVal === term) {
+            searchResults.push(currentData[mid]);
+            
+            let left = mid - 1;
+            while (left >= 0 && (currentData[left][searchField as keyof SearchData] || "")
+                .toString().toLowerCase() === term) {
+              iterations++;
+              searchResults.unshift(currentData[left--]);
+            }
+            
+            let right = mid + 1;
+            while (right < currentData.length && (currentData[right][searchField as keyof SearchData] || "")
+                .toString().toLowerCase() === term) {
+              iterations++;
+              searchResults.push(currentData[right++]);
+            }
+            break;
           }
-          let r = pos + 1;
-          while (r < currentData.length && (currentData[r][searchField as keyof SearchData] || "").toString().toLowerCase().includes(term)) {
-            searchResults.push(currentData[r++]);
-            iterations++;
-          }
-          break;
+          
+          if (midVal < term) low = mid + 1;
+          else high = mid - 1;
         }
-        if (stringToNumeric(posStr) < targetNum) low = pos + 1; else high = pos - 1;
+      } else {
+        // TRUE INTERPOLATION SEARCH untuk field numerik
+        let low = 0;
+        let high = currentData.length - 1;
+        const targetNum = getNumericValue(term);
+        
+        // Kondisi while dengan boundary check
+        while (low <= high && 
+               targetNum >= getNumericValue((currentData[low][searchField as keyof SearchData] || "").toString()) && 
+               targetNum <= getNumericValue((currentData[high][searchField as keyof SearchData] || "").toString())) {
+          iterations++;
+          
+          // Base case: jika low == high
+          if (low === high) {
+            const val = (currentData[low][searchField as keyof SearchData] || "")
+              .toString()
+              .toLowerCase();
+            if (val === term) {
+              searchResults.push(currentData[low]);
+            }
+            break;
+          }
+          
+          const lowNum = getNumericValue(
+            (currentData[low][searchField as keyof SearchData] || "").toString()
+          );
+          const highNum = getNumericValue(
+            (currentData[high][searchField as keyof SearchData] || "").toString()
+          );
+          
+          // INTERPOLATION FORMULA (inti dari algoritma ini)
+          // Estimasi posisi berdasarkan proporsi nilai
+          // Contoh: jika target di tengah range nilai, cari di tengah array
+          let pos = low;
+          if (highNum !== lowNum) {
+            pos = low + Math.floor(
+              ((targetNum - lowNum) * (high - low)) / (highNum - lowNum)
+            );
+          }
+          
+          // Safety bounds (pastikan pos dalam range valid)
+          pos = Math.max(low, Math.min(high, pos));
+          
+          const posVal = (currentData[pos][searchField as keyof SearchData] || "")
+            .toString()
+            .toLowerCase();
+          const posNum = getNumericValue(posVal);
+          
+          if (posVal === term) {
+            // Ditemukan!
+            searchResults.push(currentData[pos]);
+            
+            // Cari duplikat di kiri
+            let left = pos - 1;
+            while (left >= 0 && (currentData[left][searchField as keyof SearchData] || "")
+                .toString().toLowerCase() === term) {
+              iterations++;
+              searchResults.unshift(currentData[left--]);
+            }
+            
+            // Cari duplikat di kanan
+            let right = pos + 1;
+            while (right < currentData.length && 
+                   (currentData[right][searchField as keyof SearchData] || "")
+                   .toString().toLowerCase() === term) {
+              iterations++;
+              searchResults.push(currentData[right++]);
+            }
+            break;
+          }
+          
+          // Update range berdasarkan perbandingan
+          if (posNum < targetNum) {
+            low = pos + 1;
+          } else {
+            high = pos - 1;
+          }
+        }
       }
     }
 
@@ -141,7 +278,12 @@ export default function SearchInterface({ initialData }: { initialData: SearchDa
     const durationNs = (endPerf - startPerf) * 1_000_000;
 
     setResults(searchResults);
-    setStats({ algo, timeNs: durationNs, count: searchResults.length, iterations });
+    setStats({ 
+      algo, 
+      timeNs: durationNs, 
+      count: searchResults.length, 
+      iterations 
+    });
     
     setTimeout(() => {
       setShowStats(true);
@@ -169,7 +311,9 @@ export default function SearchInterface({ initialData }: { initialData: SearchDa
     <div className="w-full max-w-6xl flex flex-col gap-6 p-6">
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Select value={dataType} onValueChange={setDataType}>
-          <SelectTrigger className="bg-zinc-800 text-white border-zinc-700"><SelectValue placeholder="Data"/></SelectTrigger>
+          <SelectTrigger className="bg-zinc-800 text-white border-zinc-700">
+            <SelectValue placeholder="Data"/>
+          </SelectTrigger>
           <SelectContent className="bg-zinc-800 text-white border-zinc-700">
             <SelectItem value="UNIFORM">Uniform</SelectItem>
             <SelectItem value="NONUNIFORM">Non-Uniform</SelectItem> 
@@ -178,7 +322,9 @@ export default function SearchInterface({ initialData }: { initialData: SearchDa
         </Select>
 
         <Select value={quantity} onValueChange={setQuantity}>
-          <SelectTrigger className="bg-zinc-800 text-white border-zinc-700"><SelectValue placeholder="Size"/></SelectTrigger>
+          <SelectTrigger className="bg-zinc-800 text-white border-zinc-700">
+            <SelectValue placeholder="Size"/>
+          </SelectTrigger>
           <SelectContent className="bg-zinc-800 text-white border-zinc-700">
             <SelectItem value="ONETHOUSAND">1,000</SelectItem> 
             <SelectItem value="FIVETHOUSAND">5,000</SelectItem> 
@@ -187,7 +333,9 @@ export default function SearchInterface({ initialData }: { initialData: SearchDa
         </Select>
 
         <Select value={algo} onValueChange={setAlgo}>
-          <SelectTrigger className="bg-zinc-800 text-white border-zinc-700"><SelectValue placeholder="Algo"/></SelectTrigger>
+          <SelectTrigger className="bg-zinc-800 text-white border-zinc-700">
+            <SelectValue placeholder="Algo"/>
+          </SelectTrigger>
           <SelectContent className="bg-zinc-800 text-white border-zinc-700">
             <SelectItem value="linear">Linear</SelectItem>
             <SelectItem value="binary">Binary</SelectItem>
@@ -196,7 +344,9 @@ export default function SearchInterface({ initialData }: { initialData: SearchDa
         </Select>
 
         <Select value={searchField} onValueChange={setSearchField}>
-          <SelectTrigger className="bg-zinc-800 text-white border-zinc-700"><SelectValue placeholder="Field"/></SelectTrigger>
+          <SelectTrigger className="bg-zinc-800 text-white border-zinc-700">
+            <SelectValue placeholder="Field"/>
+          </SelectTrigger>
           <SelectContent className="bg-zinc-800 text-white border-zinc-700">
             <SelectItem value="nim">NIM</SelectItem>
             <SelectItem value="nama">Nama</SelectItem>
@@ -207,7 +357,7 @@ export default function SearchInterface({ initialData }: { initialData: SearchDa
 
         <Input 
           className="bg-zinc-800 text-white border-zinc-700" 
-          placeholder="Search..." 
+          placeholder="Search (exact match)..." 
           value={query} 
           onChange={(e) => setQuery(e.target.value)} 
           onKeyDown={(e) => e.key === 'Enter' && executeSearch()}
@@ -215,7 +365,11 @@ export default function SearchInterface({ initialData }: { initialData: SearchDa
       </div>
 
       <div className="relative rounded-xl border border-zinc-700 min-h-[400px] overflow-hidden bg-zinc-900">
-        {loading && <div className="absolute inset-0 bg-black/60 flex items-center justify-center text-white z-10 font-bold uppercase tracking-widest">Loading Data...</div>}
+        {loading && (
+          <div className="absolute inset-0 bg-black/60 flex items-center justify-center text-white z-10 font-bold uppercase tracking-widest">
+            Loading Data...
+          </div>
+        )}
         <Table>
           <TableHeader className="bg-zinc-800/50">
             <TableRow className="border-zinc-700">
@@ -236,17 +390,44 @@ export default function SearchInterface({ initialData }: { initialData: SearchDa
             ))}
           </TableBody>
         </Table>
+        {results.length === 0 && !loading && (
+          <div className="absolute inset-0 flex items-center justify-center text-zinc-500">
+            Tidak ada hasil ditemukan
+          </div>
+        )}
       </div>
 
       <Dialog open={showStats} onOpenChange={setShowStats}>
         <DialogContent onPointerDownOutside={(e) => e.preventDefault()} className="bg-zinc-950 border-zinc-700 text-white max-w-sm">
-          <DialogHeader><DialogTitle className="text-center">Analisis Selesai</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle className="text-center">Analisis Selesai</DialogTitle>
+          </DialogHeader>
           <div className="mt-4 space-y-3 bg-zinc-900 p-4 rounded-lg border border-zinc-800">
-            <div className="flex justify-between text-sm"><span>Algoritma</span><span className="font-bold text-blue-400 uppercase">{stats?.algo}</span></div>
-            <div className="flex justify-between text-sm"><span>Waktu</span><span className="font-mono text-green-400">{stats?.timeNs?.toLocaleString()} ns</span></div>
-            <div className="flex justify-between text-sm"><span>Iterasi</span><span className="font-mono text-yellow-400">{stats?.iterations?.toLocaleString()}</span></div>
-            <div className="flex justify-between text-sm"><span>Ditemukan</span><span className="font-bold">{stats?.count}</span></div>
+            <div className="flex justify-between text-sm">
+              <span>Algoritma</span>
+              <span className="font-bold text-blue-400 uppercase">{stats?.algo}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span>Waktu</span>
+              <span className="font-mono text-green-400">{stats?.timeNs?.toLocaleString()} ns</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span>Iterasi</span>
+              <span className="font-mono text-yellow-400">{stats?.iterations?.toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span>Ditemukan</span>
+              <span className="font-bold">{stats?.count}</span>
+            </div>
           </div>
+          
+          {/* Complexity Info
+          <div className="mt-4 p-3 bg-zinc-900/50 rounded border border-zinc-800 text-xs text-zinc-400">
+            <div className="font-semibold text-zinc-300 mb-1">Time Complexity:</div>
+            {stats?.algo === 'linear' && <div>Worst Case: O(n)</div>}
+            {stats?.algo === 'binary' && <div>Worst Case: O(log n)</div>}
+            {stats?.algo === 'interpolation' && <div>Average: O(log log n), Worst: O(n)</div>}
+          </div> */}
         </DialogContent>
       </Dialog>
     </div>
