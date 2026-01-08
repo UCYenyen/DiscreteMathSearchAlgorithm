@@ -1,6 +1,8 @@
 import SearchInterface from "@/components/common/SearchInterface";
 import { getUniformData } from "@/lib/uniform";
 
+export const dynamic = 'force-dynamic';
+
 export default async function Page() {
   const initialData = await getUniformData("ONETHOUSAND");
   const data = Array.isArray(initialData) ? initialData : [];
