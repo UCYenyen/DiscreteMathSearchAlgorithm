@@ -24,7 +24,7 @@ export default async function AnalysisPage() {
                             <TableRow className="border-zinc-700">
                                 <TableHead className="text-zinc-300">Timestamp</TableHead>
                                 <TableHead className="text-zinc-300">Algo</TableHead>
-                                <TableHead className="text-zinc-300">Dataset</TableHead>
+                                <TableHead className="text-zinc-300">Datamset</TableHead>
                                 <TableHead className="text-zinc-300">Time (ms)</TableHead>
                                 <TableHead className="text-zinc-300">Iterasi</TableHead>
                             </TableRow>
