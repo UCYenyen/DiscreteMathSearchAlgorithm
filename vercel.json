@@ -1,0 +1,15 @@
+{
+  "buildCommand": "next build",
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/next",
+      "config": {
+        "maxDuration": 300
+      }
+    }
+  ],
+  "env": {
+    "DATABASE_URL": "@database_url"
+  }
+}
